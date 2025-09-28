@@ -1,1 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>バス現在位置（Google Sheets → Leaflet）</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+    .panel {
+      position: absolute; z-index: 1000; top: 10px; left: 10px;
+      background: #fff; padding: 10px 12px; border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.15); font-family: system-ui, sans-serif;
+      display: grid; gap: 8px; min-width: 280px;
+    }
+    .row { display: grid; gap: 6px; }
+    .row label { font-size: 12px; color: #555; }
+    .row input, .row select { padding: 8px; border-radius: 8px; border: 1px solid #ddd; }
+    .note { font-size: 12px; color: #666; }
+    .pill { display: inline-block; padding: 2px 8px; font-size: 12px; border-radius: 999px; background:#f3f4f6; }
+    .btn { cursor: pointer; border: 0; padding: 8px 10px; border-radius: 8px; background: #111827; color: #fff; }
+      .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; max-height: 28vh; overflow:auto; background:#0b1020; color:#c5e4ff; padding:10px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="row">
+      <label>Google Sheets 公開CSVのURL</label>
+      <input id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/…/export?format=csv&gid=…" />
+      <div class="note">※ スプレッドシートを「ウェブに公開」→ 対象シート → 形式: CSV のURLを貼ってください。<br>
+        列名は <span class="pill">bus_id</span> <span class="pill">lat</span> <span class="pill">lng</span> <span class="pill">timestamp</span> を推奨。
+      </div>
+    </div>
+    <div class="row">
+      <label>表示モード</label>
+      <select id="mode">
+        <option value="latest">最新の1点（マーカー）</option>
+        <option value="track">軌跡（全行を折れ線＆最終点マーカー）</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>自動更新（秒）</label>
+      <input id="intervalSec" type="number" min="3" step="1" value="5" />
+    </div>
+    <div class="row" style="grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px;">
+      <button class="btn" id="startBtn">開始</button>
+      <button class="btn" id="stopBtn" style="background:#6b7280">停止</button>
+    </div>
+    <div class="note" id="status">待機中…</div>
+    <div class="log" id="log">[log] 初期化完了</div>
+  </div>
 
+  <div id="map"></div>
+
+  <script>
+    // ====== 外部ライブラリ（Leaflet）ローダー ======
+    async function loadLeaflet() {
+      const cdns = [
+        { js: 'https://unpkg.com/leaflet/dist/leaflet.js', css: 'https://unpkg.com/leaflet/dist/leaflet.css' },
+        { js: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js', css: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css' },
+        { js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js', css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css' },
+      ];
+      for (const c of cdns) {
+        try {
+          await loadCSS(c.css); await loadScript(c.js);
+          if (window.L) { log(`[leaflet] loaded from ${c.js}`); return; }
+        } catch (e) { log(`[leaflet] failed: ${c.js} → ${e.message}`); }
+      }
+      throw new Error('Leafletの読み込みに失敗しました。ネットワーク/ホスティングのCSPをご確認ください');
+    }
+    function loadScript(src){
+      return new Promise((res, rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=res; s.onerror=()=>rej(new Error('script load error')); document.head.appendChild(s); });
+    }
+    function loadCSS(href){
+      return new Promise((res, rej)=>{ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; l.onload=res; l.onerror=()=>rej(new Error('css load error')); document.head.appendChild(l); });
+    }
+  </script>
+  <script>
+    // ====== Leaflet 初期化 ======
+    let map;
+    (async () => {
+      try {
+        await loadLeaflet();
+        map = L.map('map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+        map.setView([35.681236, 139.767125], 13); // 東京駅
+        log('[init] Leaflet map initialized');
+      } catch (e) {
+        $('status').textContent = 'Leaflet読み込み失敗: ' + e.message;
+        log('[init error] ' + (e.stack || e.message));
+      }
+    })();
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    map.setView([35.681236, 139.767125], 13); // 東京駅あたり
+
+    let marker = null;
+    let polyline = null;
+    let timerId = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    // ====== CSV 取得＆描画 ======
+    async function fetchCsv(url) {
+      const t0 = performance.now();
+      const sep = url.includes('?') ? '&' : '?';
+      const finalUrl = url + sep + '_ts=' + Date.now();
+      const res = await fetch(finalUrl, { cache: 'no-store' });
+      const t1 = performance.now();
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' at ' + finalUrl);
+      const text = await res.text();
+      log(`[fetchCsv] ${res.status} in ${(t1 - t0).toFixed(0)} ms
+URL: ${finalUrl}
+First 120 bytes:
+` + text.slice(0,120));
+      return parseCsv(text);
+    }
+
+    function parseCsv(text) {(text) {
+      // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+      const headers = lines[0].split(',').map(s => s.trim());
+      const idx = {
+        bus_id: headers.indexOf('bus_id'),
+        lat: headers.indexOf('lat'),
+        lng: headers.indexOf('lng'),
+        timestamp: headers.indexOf('timestamp'),
+      };
+      return lines.slice(1).map(line => {
+        const cols = line.split(',');
+        return {
+          bus_id: idx.bus_id >= 0 ? cols[idx.bus_id] : '',
+          lat: idx.lat >= 0 ? parseFloat(cols[idx.lat]) : NaN,
+          lng: idx.lng >= 0 ? parseFloat(cols[idx.lng]) : NaN,
+          timestamp: idx.timestamp >= 0 ? cols[idx.timestamp] : ''
+        };
+      }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+    }
+
+    function fitViewIfNeeded(latlngs) {
+      if (!latlngs.length) return;
+      if (latlngs.length === 1) {
+        map.setView(latlngs[0], 16);
+      } else {
+        const bounds = L.latLngBounds(latlngs);
+        map.fitBounds(bounds.pad(0.2));
+      }
+    }
+
+    async function log(msg){
+      const el=$('log'); el.textContent += `
+${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop=el.scrollHeight;
+      console.log(msg);
+    }
+
+    async function render() {
+      const url = $('csvUrl').value.trim();
+      if (!url) { $('status').textContent = 'CSVのURLを入力してください'; return; }
+      $('status').textContent = '更新中…';
+      try {
+        const rows = await fetchCsv(url);
+        log(`[render] rows=${rows.length}`);
+        if (!rows.length) { $('status').textContent = 'データがありません'; return; }
+
+        const mode = $('mode').value;
+        if (mode === 'latest') {
+          const last = rows[rows.length - 1];
+          const latlng = [last.lat, last.lng];
+          if (!marker) marker = L.marker(latlng).addTo(map);
+          marker.setLatLng(latlng);
+          if (polyline) { map.removeLayer(polyline); polyline = null; }
+          fitViewIfNeeded([latlng]);
+          $('status').textContent = `最新: ${last.timestamp || ''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id || '-'}`;
+        } else {
+          const latlngs = rows.map(r => [r.lat, r.lng]);
+          if (polyline) polyline.setLatLngs(latlngs); else polyline = L.polyline(latlngs, { weight: 4 }).addTo(map);
+          const last = rows[rows.length - 1];
+          const lastLatLng = [last.lat, last.lng];
+          if (!marker) marker = L.marker(lastLatLng).addTo(map);
+          marker.setLatLng(lastLatLng);
+          fitViewIfNeeded(latlngs);
+          $('status').textContent = `行数: ${rows.length} / 最新: ${last.timestamp || ''} / ${lastLatLng[0].toFixed(6)}, ${lastLatLng[1].toFixed(6)} / bus_id: ${last.bus_id || '-'}`;
+        }
+      } catch (e) {
+        $('status').textContent = 'エラー: ' + e.message;
+        log(`[error] ${e.stack || e.message}`);
+      }
+    }
+
+    function start() {
+      if (timerId) clearInterval(timerId);
+      render();
+      const sec = Math.max(3, Number($('intervalSec').value) || 5);
+      timerId = setInterval(render, sec * 1000);
+    }
+
+    function stop() {
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      $('status').textContent = '停止中';
+    }
+
+    $('startBtn').addEventListener('click', start);
+    $('stopBtn').addEventListener('click', stop);
+  </script>
+</body>
+</html>
