@@ -117,7 +117,7 @@
       if (!url) { $('status').textContent = 'CSVのURLを入力してください'; return; }
       
       $('status').textContent = '更新中…';
-      alert("AA");
+      $('status').textContent = '更新中2…';
       try {
         const rows = await fetchCsv(url);
         if (!rows.length) { $('status').textContent = 'データがありません'; return; }
