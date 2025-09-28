@@ -97,7 +97,10 @@
       else{ const bounds=L.latLngBounds(latlngs); map.fitBounds(bounds.pad(0.2)); }
     }
 
+    let seq = 0;
+
     async function render(){
+      const mySeq = ++seq;  
       //const url=$('csvUrl').value.trim();
       const url='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?gid=0&single=true&output=csv';
 
@@ -105,6 +108,8 @@
       $('status').textContent='更新中…';
       try{
         const rows=await fetchCsv(url);
+        if (mySeq !== seq) return;
+
         log('[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
         const mode=$('mode').value;
