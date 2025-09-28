@@ -97,10 +97,8 @@
       else{ const bounds=L.latLngBounds(latlngs); map.fitBounds(bounds.pad(0.2)); }
     }
 
-    let seq = 0;
 
     async function render(){
-      const mySeq = ++seq;  
       //const url=$('csvUrl').value.trim();
       const url='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?gid=0&single=true&output=csv';
 
@@ -108,10 +106,6 @@
       $('status').textContent='更新中…';
       try{
         const rows=await fetchCsv(url);
-        if (mySeq !== seq){
-          log('mySeq !== seq');
-          return;
-        }
         
 //        log(seq + '[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
@@ -119,6 +113,18 @@
         const mode = 'latest';
         if(mode==='latest'){
           const last=rows[rows.length-1];
+
+          if (last.timestamp) {
+            const d2El = document.getElementById('d2time');
+            const prevTs = d2El ? new Date(d2El.textContent) : null;
+            const currTs = new Date(last.timestamp);
+            if (prevTs && currTs < prevTs) {
+              log('[render] skip: '+currTs+' < '+prevTs);
+              return; // 古いのでスキップ
+            }
+            if (d2El) d2El.textContent = currTs.toISOString();
+          }
+          
           const latlng=[last.lat,last.lng];
           if(!marker) marker=L.marker(latlng).addTo(map);
           marker.setLatLng(latlng);
@@ -139,21 +145,27 @@
       }catch(e){ $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); }
     }
 
-let running = false;
+    // D2セル時刻の代わりにHTML内に隠し要素を置いて管理
+    const hiddenD2=document.createElement('div');
+    hiddenD2.id='d2time';
+    hiddenD2.style.display='none';
+    document.body.appendChild(hiddenD2);
+    
+    let running = false;
 
-async function start() {
-  if (running) return;
-  running = true;
-//  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
-  const intervalMs = Math.max(3000, 5 * 1000 || 5000);
-  while (running) {
-    await render();                  // ← fetchCsv() を待ってから
-    await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
-  }
-}
-function stop(){ running = false; }
-//    $('startBtn').addEventListener('click',start);
-//    $('stopBtn').addEventListener('click',stop);
+    async function start() {
+      if (running) return;
+      running = true;
+    //  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
+      const intervalMs = Math.max(3000, 1 * 1000 || 5000);
+      while (running) {
+        await render();                  // ← fetchCsv() を待ってから
+        await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
+      }
+    }
+    function stop(){ running = false; }
+    //    $('startBtn').addEventListener('click',start);
+    //    $('stopBtn').addEventListener('click',stop);
     start();
   </script>
 </body>
