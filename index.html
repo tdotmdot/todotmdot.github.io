@@ -20,10 +20,10 @@
     .note { font-size: 12px; color: #666; }
     .pill { display: inline-block; padding: 2px 8px; font-size: 12px; border-radius: 999px; background:#f3f4f6; }
     .btn { cursor: pointer; border: 0; padding: 8px 10px; border-radius: 8px; background: #111827; color: #fff; }
+      .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; max-height: 28vh; overflow:auto; background:#0b1020; color:#c5e4ff; padding:10px; border-radius:8px; }
   </style>
 </head>
 <body>
-  tdotmdot
   <div class="panel">
     <div class="row">
       <label>Google Sheets 公開CSVのURL</label>
@@ -48,6 +48,7 @@
       <button class="btn" id="stopBtn" style="background:#6b7280">停止</button>
     </div>
     <div class="note" id="status">待機中…</div>
+    <div class="log" id="log">[log] 初期化完了</div>
   </div>
 
   <div id="map"></div>
@@ -65,26 +66,27 @@
     let polyline = null;
     let timerId = null;
 
-    $('status').textContent = '更新中1…';
-
     const $ = (id) => document.getElementById(id);
 
     // ====== CSV 取得＆描画 ======
     async function fetchCsv(url) {
-      // キャッシュ回避のためのパラメータ付与
+      const t0 = performance.now();
       const sep = url.includes('?') ? '&' : '?';
-      const res = await fetch(url + sep + '_ts=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const finalUrl = url + sep + '_ts=' + Date.now();
+      const res = await fetch(finalUrl, { cache: 'no-store' });
+      const t1 = performance.now();
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' at ' + finalUrl);
       const text = await res.text();
+      log(`[fetchCsv] ${res.status} in ${(t1 - t0).toFixed(0)} ms
+URL: ${finalUrl}
+First 120 bytes:
+` + text.slice(0,120));
       return parseCsv(text);
     }
 
-    $('status').textContent = '更新中2…';
-    function parseCsv(text) {
+    function parseCsv(text) {(text) {
       // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
       const lines = text.trim().split(/\r?\n/);
-
-      $('status').textContent = lines;
       if (lines.length < 2) return [];
       const headers = lines[0].split(',').map(s => s.trim());
       const idx = {
@@ -93,8 +95,6 @@
         lng: headers.indexOf('lng'),
         timestamp: headers.indexOf('timestamp'),
       };
-
-      $('status').textContent = 'ret';
       return lines.slice(1).map(line => {
         const cols = line.split(',');
         return {
@@ -106,7 +106,6 @@
       }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
     }
 
-    $('status').textContent = '更新中3…';
     function fitViewIfNeeded(latlngs) {
       if (!latlngs.length) return;
       if (latlngs.length === 1) {
@@ -117,16 +116,21 @@
       }
     }
 
-    $('status').textContent = '更新中4…';
+    async function log(msg){
+      const el=$('log'); el.textContent += `
+${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop=el.scrollHeight;
+      console.log(msg);
+    }
+
     async function render() {
 //      const url = $('csvUrl').value.trim();
       const url = $('https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?output=csv').value.trim();
 
       if (!url) { $('status').textContent = 'CSVのURLを入力してください'; return; }
-      
       $('status').textContent = '更新中…';
       try {
         const rows = await fetchCsv(url);
+        log(`[render] rows=${rows.length}`);
         if (!rows.length) { $('status').textContent = 'データがありません'; return; }
 
         const mode = $('mode').value;
@@ -139,7 +143,6 @@
           fitViewIfNeeded([latlng]);
           $('status').textContent = `最新: ${last.timestamp || ''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id || '-'}`;
         } else {
-          // 軌跡描画
           const latlngs = rows.map(r => [r.lat, r.lng]);
           if (polyline) polyline.setLatLngs(latlngs); else polyline = L.polyline(latlngs, { weight: 4 }).addTo(map);
           const last = rows[rows.length - 1];
@@ -151,20 +154,17 @@
         }
       } catch (e) {
         $('status').textContent = 'エラー: ' + e.message;
+        log(`[error] ${e.stack || e.message}`);
       }
     }
 
-    $('status').textContent = '更新中5…';
     function start() {
-      alert("BB");
-
       if (timerId) clearInterval(timerId);
       render();
       const sec = Math.max(3, Number($('intervalSec').value) || 5);
       timerId = setInterval(render, sec * 1000);
     }
 
-    $('status').textContent = '更新中6…';
     function stop() {
       if (timerId) { clearInterval(timerId); timerId = null; }
       $('status').textContent = '停止中';
@@ -172,7 +172,6 @@
 
     $('startBtn').addEventListener('click', start);
     $('stopBtn').addEventListener('click', stop);
-    $('status').textContent = '更新中F…';
   </script>
 </body>
 </html>
