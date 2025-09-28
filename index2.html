@@ -69,11 +69,16 @@
       } catch(e){ $('status').textContent='Leaflet読み込み失敗: '+e.message; log('[init error] '+(e.stack||e.message)); }
     });
 
+    let abortCtrl = null;
+    
     async function fetchCsv(url){
       const sep=url.includes('?')?'&':'?';
-      const finalUrl=url+sep+'_ts='+Date.now();
-      const res=await fetch(finalUrl,{cache:'no-store'});
-      if(!res.ok) throw new Error('HTTP '+res.status);
+      abortCtrl?.abort();                // ← 前回の取得を中断
+      abortCtrl = new AbortController();
+      const res = await fetch(url + sep + '_ts=' + Date.now(), {
+        cache: 'no-store',
+        signal: abortCtrl.signal
+      });
       const text=await res.text();
 //      log('[fetchCsv] '+res.status+' '+finalUrl+'\n'+text.slice(0,80));
       log('[fetchCsv] '+res.status + ' : ' + text);
