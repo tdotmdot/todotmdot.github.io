@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>バス現在位置（Google Sheets → Leaflet）</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
@@ -62,34 +63,24 @@
       console.log(msg);
     }
 
-    // ====== 外部ライブラリ（Leaflet）ローダー ====== ======
-    async function loadLeaflet() {
-      const cdns = [
-        { js: 'https://unpkg.com/leaflet/dist/leaflet.js', css: 'https://unpkg.com/leaflet/dist/leaflet.css' },
-        { js: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js', css: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css' },
-        { js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js', css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css' },
-      ];
-      for (const c of cdns) {
-        try {
-          await loadCSS(c.css); await loadScript(c.js);
-          if (window.L) { log(`[leaflet] loaded from ${c.js}`); return; }
-        } catch (e) { log(`[leaflet] failed: ${c.js} → ${e.message}`); }
-      }
-      throw new Error('Leafletの読み込みに失敗しました。ネットワーク/ホスティングのCSPをご確認ください');
-    }
-    function loadScript(src){
-      return new Promise((res, rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=res; s.onerror=()=>rej(new Error('script load error')); document.head.appendChild(s); });
-    }
-    function loadCSS(href){
-      return new Promise((res, rej)=>{ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; l.onload=res; l.onerror=()=>rej(new Error('css load error')); document.head.appendChild(l); });
-    }
+    // ====== （簡素版）LeafletはCDNから先に同期ロード済み（上の<script src>） ======
+    // ここではローダーを使わず、DOMContentLoadedで初期化だけ行います。
   </script>
   <script>
     // ====== Leaflet 初期化 ======
     let map;
     window.addEventListener('DOMContentLoaded', async () => {
       try {
-        await loadLeaflet();
+        if (!window.L) throw new Error('Leaflet global L is undefined (CDNブロック/オフラインの可能性)');
+        map = L.map('map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+        map.setView([35.681236, 139.767125], 13); // 東京駅
+        log('[init] Leaflet map initialized');
+      } catch (e) {
+        $('status').textContent = 'Leaflet読み込み失敗: ' + e.message;
+        log('[init error] ' + (e.stack || e.message));
+      }
+    });
         // Leaflet がロード済みか最終チェック
         if (!window.L) throw new Error('Leaflet global L is undefined');
         map = L.map('map');
