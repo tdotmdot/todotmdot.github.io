@@ -65,6 +65,8 @@
     let polyline = null;
     let timerId = null;
 
+    $('status').textContent = '更新中1…';
+
     const $ = (id) => document.getElementById(id);
 
     // ====== CSV 取得＆描画 ======
@@ -77,6 +79,7 @@
       return parseCsv(text);
     }
 
+    $('status').textContent = '更新中2…';
     function parseCsv(text) {
       // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
       const lines = text.trim().split(/\r?\n/);
@@ -99,6 +102,7 @@
       }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
     }
 
+    $('status').textContent = '更新中3…';
     function fitViewIfNeeded(latlngs) {
       if (!latlngs.length) return;
       if (latlngs.length === 1) {
@@ -109,6 +113,7 @@
       }
     }
 
+    $('status').textContent = '更新中4…';
     async function render() {
 //      const url = $('csvUrl').value.trim();
       const url = $('https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?output=csv').value.trim();
@@ -145,6 +150,7 @@
       }
     }
 
+    $('status').textContent = '更新中5…';
     function start() {
       alert("BB");
 
@@ -154,6 +160,7 @@
       timerId = setInterval(render, sec * 1000);
     }
 
+    $('status').textContent = '更新中6…';
     function stop() {
       if (timerId) { clearInterval(timerId); timerId = null; }
       $('status').textContent = '停止中';
@@ -161,7 +168,7 @@
 
     $('startBtn').addEventListener('click', start);
     $('stopBtn').addEventListener('click', stop);
-    $('status').textContent = '更新中2…';
+    $('status').textContent = '更新中F…';
   </script>
 </body>
 </html>
