@@ -141,8 +141,18 @@
       }catch(e){ $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); }
     }
 
-    function start(){ if(timerId) clearInterval(timerId); render(); const sec=Math.max(3,Number($('intervalSec').value)||5); timerId=setInterval(render,sec*1000); }
-    function stop(){ if(timerId) clearInterval(timerId); timerId=null; $('status').textContent='停止中'; }
+let running = false;
+
+async function start() {
+  if (running) return;
+  running = true;
+  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
+  while (running) {
+    await render();                  // ← fetchCsv() を待ってから
+    await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
+  }
+}
+function stop(){ running = false; }
 //    $('startBtn').addEventListener('click',start);
 //    $('stopBtn').addEventListener('click',stop);
     start();
