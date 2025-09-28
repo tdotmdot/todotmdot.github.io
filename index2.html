@@ -108,8 +108,11 @@
       $('status').textContent='更新中…';
       try{
         const rows=await fetchCsv(url);
-        if (mySeq !== seq) return;
-
+        if (mySeq !== seq){
+          log('mySeq !== seq');
+          return;
+        }
+        
         log('[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
         const mode=$('mode').value;
