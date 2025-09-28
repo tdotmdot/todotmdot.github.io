@@ -122,7 +122,6 @@
           const latlng=[last.lat,last.lng];
           if(!marker) marker=L.marker(latlng).addTo(map);
           marker.setLatLng(latlng);
-          marker.setLatLng(last.timestamp);
 　        log(latlng);
           if(polyline){ map.removeLayer(polyline); polyline=null; }
 //          fitViewIfNeeded([latlng]);
