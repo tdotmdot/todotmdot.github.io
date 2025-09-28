@@ -62,7 +62,7 @@
         if (!window.L) throw new Error('Leaflet global L is undefined');
         map = L.map('map');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-        map.setView([35.681236,139.767125],13);
+        map.setView([35.190724, 137.033655], 15); // 藤が丘 - (HCS)
         log('[init] Leaflet map initialized');
       } catch(e){ $('status').textContent='Leaflet読み込み失敗: '+e.message; log('[init error] '+(e.stack||e.message)); }
     });
