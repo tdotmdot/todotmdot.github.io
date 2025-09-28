@@ -118,7 +118,7 @@ First 120 bytes:
       return parseCsv(text);
     }
 
-    function parseCsv(text) {(text) {
+    function parseCsv(text) {
       // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
       const lines = text.trim().split(/\r?\n/);
       if (lines.length < 2) return [];
