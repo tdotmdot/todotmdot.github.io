@@ -119,10 +119,10 @@
         const mode = 'latest';
         if(mode==='latest'){
           const last=rows[rows.length-1];
-　        log(last);
           const latlng=[last.lat,last.lng];
           if(!marker) marker=L.marker(latlng).addTo(map);
-          marker.setLatLng(latlng + ":" + last.timestamp);
+          marker.setLatLng(latlng);
+          marker.setLatLng(last.timestamp);
 　        log(latlng);
           if(polyline){ map.removeLayer(polyline); polyline=null; }
 //          fitViewIfNeeded([latlng]);
