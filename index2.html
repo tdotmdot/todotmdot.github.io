@@ -115,7 +115,8 @@
         
         log(seq + '[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
-        const mode=$('mode').value;
+//        const mode=$('mode').value;
+        const mode = 'latest';
         if(mode==='latest'){
           const last=rows[rows.length-1];
 　        log(last);
