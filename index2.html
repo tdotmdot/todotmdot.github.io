@@ -76,7 +76,7 @@
       if(!res.ok) throw new Error('HTTP '+res.status);
       const text=await res.text();
 //      log('[fetchCsv] '+res.status+' '+finalUrl+'\n'+text.slice(0,80));
-      log('[fetchCsv] '+res.status);
+      log('[fetchCsv] '+res.status + ' : ' + text);
       return parseCsv(text);
     }
 
