@@ -54,7 +54,15 @@
   <div id="map"></div>
 
   <script>
-    // ====== 外部ライブラリ（Leaflet）ローダー ======
+    // ====== 先にユーティリティを定義（後で使うので最上部に） ======
+    function $(id){ return document.getElementById(id); }
+    function log(msg){
+      const el = $('log');
+      if (el) { el.textContent += `\n${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop = el.scrollHeight; }
+      console.log(msg);
+    }
+
+    // ====== 外部ライブラリ（Leaflet）ローダー ====== ======
     async function loadLeaflet() {
       const cdns = [
         { js: 'https://unpkg.com/leaflet/dist/leaflet.js', css: 'https://unpkg.com/leaflet/dist/leaflet.css' },
@@ -79,9 +87,11 @@
   <script>
     // ====== Leaflet 初期化 ======
     let map;
-    (async () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       try {
         await loadLeaflet();
+        // Leaflet がロード済みか最終チェック
+        if (!window.L) throw new Error('Leaflet global L is undefined');
         map = L.map('map');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
         map.setView([35.681236, 139.767125], 13); // 東京駅
@@ -90,7 +100,7 @@
         $('status').textContent = 'Leaflet読み込み失敗: ' + e.message;
         log('[init error] ' + (e.stack || e.message));
       }
-    })();
+    });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -118,7 +128,7 @@ First 120 bytes:
       return parseCsv(text);
     }
 
-    function parseCsv(text) {
+    function parseCsv(text) {(text) {
       // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
       const lines = text.trim().split(/\r?\n/);
       if (lines.length < 2) return [];
