@@ -113,6 +113,7 @@
           const latlng=[last.lat,last.lng];
           if(!marker) marker=L.marker(latlng).addTo(map);
           marker.setLatLng(latlng);
+　        log(latlng);
           if(polyline){ map.removeLayer(polyline); polyline=null; }
 //          fitViewIfNeeded([latlng]);
           $('status').textContent=`最新: ${last.timestamp||''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
