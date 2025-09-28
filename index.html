@@ -113,7 +113,9 @@
     async function render() {
 //      const url = $('csvUrl').value.trim();
       const url = $('https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pubhtml').value.trim();
+
       if (!url) { $('status').textContent = 'CSVのURLを入力してください'; return; }
+      
       $('status').textContent = '更新中…';
       try {
         const rows = await fetchCsv(url);
@@ -145,10 +147,10 @@
     }
 
     function start() {
-//      if (timerId) clearInterval(timerId);
-//      render();
+      if (timerId) clearInterval(timerId);
+      render();
       const sec = Math.max(3, Number($('intervalSec').value) || 5);
-//      timerId = setInterval(render, sec * 1000);
+      timerId = setInterval(render, sec * 1000);
     }
 
     function stop() {
