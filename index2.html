@@ -75,7 +75,8 @@
       const res=await fetch(finalUrl,{cache:'no-store'});
       if(!res.ok) throw new Error('HTTP '+res.status);
       const text=await res.text();
-      log('[fetchCsv] '+res.status+' '+finalUrl+'\n'+text.slice(0,80));
+//      log('[fetchCsv] '+res.status+' '+finalUrl+'\n'+text.slice(0,80));
+      log('[fetchCsv] '+res.status);
       return parseCsv(text);
     }
 
@@ -130,8 +131,9 @@
 
     function start(){ if(timerId) clearInterval(timerId); render(); const sec=Math.max(3,Number($('intervalSec').value)||5); timerId=setInterval(render,sec*1000); }
     function stop(){ if(timerId) clearInterval(timerId); timerId=null; $('status').textContent='停止中'; }
-    $('startBtn').addEventListener('click',start);
-    $('stopBtn').addEventListener('click',stop);
+//    $('startBtn').addEventListener('click',start);
+//    $('stopBtn').addEventListener('click',stop);
+    start();
   </script>
 </body>
 </html>
