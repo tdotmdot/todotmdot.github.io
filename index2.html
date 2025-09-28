@@ -23,12 +23,14 @@
 </head>
 <body>
   <div class="panel">
+    <!--
     <div class="row">
       <label>Google Sheets 公開CSVのURL</label>
       <input id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=..." />
       <div class="note">※ 「ウェブに公開」したシートのCSV URLを貼ってください。<br>
         列名は <span class="pill">bus_id</span> <span class="pill">lat</span> <span class="pill">lng</span> <span class="pill">timestamp</span> を推奨。</div>
     </div>
+    -->
     <div class="row">
       <label>表示モード</label>
       <select id="mode">
@@ -111,7 +113,7 @@
           if(!marker) marker=L.marker(latlng).addTo(map);
           marker.setLatLng(latlng);
           if(polyline){ map.removeLayer(polyline); polyline=null; }
-          fitViewIfNeeded([latlng]);
+//          fitViewIfNeeded([latlng]);
           $('status').textContent=`最新: ${last.timestamp||''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
         } else {
           const latlngs=rows.map(r=>[r.lat,r.lng]);
@@ -120,7 +122,7 @@
           const lastLatLng=[last.lat,last.lng];
           if(!marker) marker=L.marker(lastLatLng).addTo(map);
           marker.setLatLng(lastLatLng);
-          fitViewIfNeeded(latlngs);
+//          fitViewIfNeeded(latlngs);
           $('status').textContent=`行数: ${rows.length} / 最新: ${last.timestamp||''} / ${lastLatLng[0].toFixed(6)}, ${lastLatLng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
         }
       }catch(e){ $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); }
