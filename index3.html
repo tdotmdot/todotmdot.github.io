@@ -105,7 +105,6 @@
           log('my !== seq');
           return; // 自分より新しい呼び出しがあれば無視
         }
-        apply(rows);
         
 //        log(seq + '[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
