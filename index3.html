@@ -153,11 +153,19 @@
       running = true;
     //  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
       const intervalMs = 10 * 1000;
-      log("intervalMs :" + intervalMs);
-      while (running) {
-        await render();                  // ← fetchCsv() を待ってから
-        await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
-      }
+      log("await sleep intervalMs :" + intervalMs);
+//      while (running) {
+//        await render();                  // ← fetchCsv() を待ってから
+//        await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
+//      }
+      while(running){
+        try{
+          await render(); 
+        } catch(e){ 
+          $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); 
+        }
+        await sleep(interval);
+      }      
     }
     function stop(){ running = false; }
     //    $('startBtn').addEventListener('click',start);
