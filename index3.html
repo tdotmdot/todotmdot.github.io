@@ -91,15 +91,21 @@
       else{ const bounds=L.latLngBounds(latlngs); map.fitBounds(bounds.pad(0.2)); }
     }
 
-
+    let seq = 0;
     async function render(){
       //const url=$('csvUrl').value.trim();
       const url='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?gid=0&single=true&output=csv';
 
+      const my = ++seq;
       if(!url){ $('status').textContent='CSVのURLを入力してください'; return; }
       $('status').textContent='更新中…';
       try{
         const rows=await fetchCsv(url);
+        if (my !== seq){
+          log('my !== seq');
+          return; // 自分より新しい呼び出しがあれば無視
+        }
+        apply(rows);
         
 //        log(seq + '[render] rows='+rows.length);
         if(!rows.length){ $('status').textContent='データがありません'; return; }
