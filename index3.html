@@ -164,7 +164,7 @@
         } catch(e){ 
           $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); 
         }
-        await sleep(interval);
+        await sleep(intervalMs);
       }      
     }
     function stop(){ running = false; }
