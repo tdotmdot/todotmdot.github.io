@@ -57,7 +57,8 @@
     // ===== ユーティリティ =====
     function $(id){ return document.getElementById(id); }
     function log(msg){ const el=$('log'); if(el){ el.textContent += `\n${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop=el.scrollHeight; } console.log(msg); }
-
+    const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));   // ← 追加
+    
     let abortCtrl = null;
     
     async function fetchCsv(url){
