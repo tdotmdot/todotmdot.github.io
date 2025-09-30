@@ -65,7 +65,7 @@
         map = L.map('map');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
         map.setView([35.190724, 137.033655], 15); // 藤が丘 - (HCS)
-        log('[init] Leaflet map initialized');
+        log('[init] Leaflet map initialized: R01');
       } catch(e){ $('status').textContent='Leaflet読み込み失敗: '+e.message; log('[init error] '+(e.stack||e.message)); }
     });
 
@@ -101,7 +101,7 @@
 
     function fitViewIfNeeded(latlngs){
       if(!latlngs.length) return;
-      if(latlngs.length===1){ map.setView(latlngs[0],16); }
+      if(latlngs.length===1){ map.setView(latlngs[0],15); }
       else{ const bounds=L.latLngBounds(latlngs); map.fitBounds(bounds.pad(0.2)); }
     }
 
@@ -123,6 +123,14 @@
         const last = rows[rows.length-1];
         const latlng = [last.lat, last.lng];
 
+        // 初回はマーカーを作る、2回目以降は位置だけ更新
+        if (!marker) {
+          marker = L.marker(latlng).addTo(map);
+          map.setView(latlng, 15);        // 初回だけ地図を寄せる（任意）
+        } else {
+          marker.setLatLng(latlng);
+        }
+        
         // 表示・ログ
         $('status').textContent = `最新: ${new Date(last.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
 
@@ -141,7 +149,7 @@
       if (running) return;
       running = true;
     //  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
-      const intervalMs = 10 * 1000;
+      const intervalMs = 1 * 1000;
       log("await sleep intervalMs :" + intervalMs);
 //      while (running) {
 //        await render();                  // ← fetchCsv() を待ってから
