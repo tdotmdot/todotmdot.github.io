@@ -61,19 +61,17 @@
     
     let abortCtrl = null;
     
-    async function fetchCsv(url){
-      const sep=url.includes('?')?'&':'?';
-      abortCtrl?.abort();                // ← 前回の取得を中断
-      abortCtrl = new AbortController();
-      const res = await fetch(url + sep + '_ts=' + Date.now(), {
-        cache: 'no-store',
-        signal: abortCtrl.signal
-      });
-      const text=await res.text();
-//      log('[fetchCsv] '+res.status+' '+finalUrl+'\n'+text.slice(0,80));
-      log('[fetchCsv] '+res.status + ' : ' + text);
-      return parseCsv(text);
+    // 旧: async function fetchCsv(url){ ... }
+    // 新: 最新N件をGASから取る
+    async function fetchLatest(limit=50){
+      const base = 'https://script.google.com/macros/s/＜あなたのID＞/exec';
+      const url  = `${base}?fn=latest&limit=${limit}&_ts=${Date.now()}`; // キャッシュ回避
+      const res  = await fetch(url, { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const j = await res.json();
+      return j.rows || [];
     }
+
 
     function parseCsv(text){
       const lines=text.trim().split(/\r?\n/);
@@ -101,43 +99,18 @@
       if(!url){ $('status').textContent='CSVのURLを入力してください'; return; }
       $('status').textContent='更新中…';
       try{
-        const rows=await fetchCsv(url);
-        if (my !== seq){
-          log('my !== seq');
-          return; // 自分より新しい呼び出しがあれば無視
-        }
-        
-//        log(seq + '[render] rows='+rows.length);
-        if(!rows.length){ $('status').textContent='データがありません'; return; }
-//        const mode=$('mode').value;
-        const mode = 'latest';
-        if(mode==='latest'){
-          const last=rows[rows.length-1];
+        // 旧: const rows = await fetchCsv(url);
+        const rows = await fetchLatest(50);  // 必要なら件数調整
+        if (!rows.length) { $('status').textContent='データがありません'; return; }
 
-          if (last.timestamp) {
-            const d2El = document.getElementById('d2time');
-            const prevTs = d2El ? new Date(d2El.textContent) : null;
-            const currTs = new Date(last.timestamp);
-            if (prevTs && currTs < prevTs) {
-              log('[render] skip: '+currTs+' < '+prevTs);
-              return; // 古いのでスキップ
-            }
-            if (d2El) d2El.textContent = currTs.toISOString();
-          }
-          
-          const latlng=[last.lat,last.lng];
-　        log(latlng);
-          $('status').textContent=`最新: ${last.timestamp||''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
-        } else {
-          const latlngs=rows.map(r=>[r.lat,r.lng]);
-          if(polyline) polyline.setLatLngs(latlngs); else polyline=L.polyline(latlngs,{weight:4}).addTo(map);
-          const last=rows[rows.length-1];
-          const lastLatLng=[last.lat,last.lng];
-          if(!marker) marker=L.marker(lastLatLng).addTo(map);
-          marker.setLatLng(lastLatLng);
-//          fitViewIfNeeded(latlngs);
-          $('status').textContent=`行数: ${rows.length} / 最新: ${last.timestamp||''} / ${lastLatLng[0].toFixed(6)}, ${lastLatLng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
-        }
+        // rows は時刻昇順で返る前提（GAS側でソート済み）
+        // 最新だけ使うなら：
+        const last = rows[rows.length-1];
+        const latlng = [last.lat, last.lng];
+
+        // 表示・ログ
+        $('status').textContent = `最新: ${new Date(last.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
+
       }catch(e){ $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); }
     }
 
