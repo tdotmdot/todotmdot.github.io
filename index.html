@@ -25,6 +25,7 @@
 </head>
 <body>
   <div class="panel">
+    <!--
     <div class="row">
       <label>Google Sheets 公開CSVのURL</label>
       <input id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/…/export?format=csv&gid=…" />
@@ -46,6 +47,7 @@
     <div class="row" style="grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px;">
       <button class="btn" id="startBtn">開始</button>
       <button class="btn" id="stopBtn" style="background:#6b7280">停止</button>
+    -->
     </div>
     <div class="note" id="status">待機中…</div>
     <div class="log" id="log">[log] 初期化完了</div>
@@ -102,108 +104,97 @@
 
     const $ = (id) => document.getElementById(id);
 
-    // ====== CSV 取得＆描画 ======
-    async function fetchCsv(url) {
-      const t0 = performance.now();
-      const sep = url.includes('?') ? '&' : '?';
-      const finalUrl = url + sep + '_ts=' + Date.now();
-      const res = await fetch(finalUrl, { cache: 'no-store' });
-      const t1 = performance.now();
-      if (!res.ok) throw new Error('HTTP ' + res.status + ' at ' + finalUrl);
-      const text = await res.text();
-      log(`[fetchCsv] ${res.status} in ${(t1 - t0).toFixed(0)} ms
-URL: ${finalUrl}
-First 120 bytes:
-` + text.slice(0,120));
-      return parseCsv(text);
+    // ===== ユーティリティ =====
+    function $(id){ return document.getElementById(id); }
+    function log(msg){ const el=$('log'); if(el){ el.textContent += `\n${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop=el.scrollHeight; } console.log(msg); }
+    const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));   // ← 追加
+    
+    let abortCtrl = null;
+    
+    // 旧: async function fetchCsv(url){ ... }
+    // 新: 最新N件をGASから取る
+    async function fetchLatest(limit=50){
+      const base = 'https://script.google.com/macros/s/AKfycbwOpVd22xfuYgxMgbPsJ1TpLdSs_CW3MburtB1rn-mSwyUBA9ubutT3qyXyFKrQOSz4/exec';
+      const url  = `${base}?fn=latest&limit=${limit}&_ts=${Date.now()}`; // キャッシュ回避
+      const res  = await fetch(url, { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const j = await res.json();
+      return j.rows || [];
     }
 
-    function parseCsv(text) {(text) {
-      // 簡易CSVパーサ（カンマと改行のみ想定、フィールド内のカンマ・クォートは未対応）
-      const lines = text.trim().split(/\r?\n/);
-      if (lines.length < 2) return [];
-      const headers = lines[0].split(',').map(s => s.trim());
-      const idx = {
-        bus_id: headers.indexOf('bus_id'),
-        lat: headers.indexOf('lat'),
-        lng: headers.indexOf('lng'),
-        timestamp: headers.indexOf('timestamp'),
-      };
-      return lines.slice(1).map(line => {
-        const cols = line.split(',');
-        return {
-          bus_id: idx.bus_id >= 0 ? cols[idx.bus_id] : '',
-          lat: idx.lat >= 0 ? parseFloat(cols[idx.lat]) : NaN,
-          lng: idx.lng >= 0 ? parseFloat(cols[idx.lng]) : NaN,
-          timestamp: idx.timestamp >= 0 ? cols[idx.timestamp] : ''
-        };
-      }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+
+    function parseCsv(text){
+      const lines=text.trim().split(/\r?\n/);
+      if(lines.length<2) return [];
+      const headers=lines[0].split(',').map(s=>s.trim());
+      const idx={ bus_id:headers.indexOf('bus_id'), lat:headers.indexOf('lat'), lng:headers.indexOf('lng'), timestamp:headers.indexOf('timestamp') };
+      return lines.slice(1).map(line=>{
+        const cols=line.split(',');
+        return { bus_id: idx.bus_id>=0?cols[idx.bus_id]:'', lat: idx.lat>=0?parseFloat(cols[idx.lat]):NaN, lng: idx.lng>=0?parseFloat(cols[idx.lng]):NaN, timestamp: idx.timestamp>=0?cols[idx.timestamp]:'' };
+      }).filter(r=>Number.isFinite(r.lat)&&Number.isFinite(r.lng));
     }
 
-    function fitViewIfNeeded(latlngs) {
-      if (!latlngs.length) return;
-      if (latlngs.length === 1) {
-        map.setView(latlngs[0], 16);
-      } else {
-        const bounds = L.latLngBounds(latlngs);
-        map.fitBounds(bounds.pad(0.2));
-      }
+    function fitViewIfNeeded(latlngs){
+      if(!latlngs.length) return;
+      if(latlngs.length===1){ map.setView(latlngs[0],16); }
+      else{ const bounds=L.latLngBounds(latlngs); map.fitBounds(bounds.pad(0.2)); }
     }
 
-    async function log(msg){
-      const el=$('log'); el.textContent += `
-${new Date().toLocaleTimeString()} ${msg}`; el.scrollTop=el.scrollHeight;
-      console.log(msg);
+    let seq = 0;
+    async function render(){
+      //const url=$('csvUrl').value.trim();
+      const url='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4ctXQDM6uMC20lffc26TMiIW0E7Aj0As0Q4JLVwtFuL49c8WreK-UrZyaI2DJRbn6GICU7J5IyR7J/pub?gid=0&single=true&output=csv';
+
+      const my = ++seq;
+      if(!url){ $('status').textContent='CSVのURLを入力してください'; return; }
+      $('status').textContent='更新中…';
+      try{
+        // 旧: const rows = await fetchCsv(url);
+        const rows = await fetchLatest(50);  // 必要なら件数調整
+        if (!rows.length) { $('status').textContent='データがありません'; return; }
+
+        // rows は時刻昇順で返る前提（GAS側でソート済み）
+        // 最新だけ使うなら：
+        const last = rows[rows.length-1];
+        const latlng = [last.lat, last.lng];
+
+        // 表示・ログ
+        $('status').textContent = `最新: ${new Date(last.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id||'-'}`;
+
+      }catch(e){ $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); }
     }
 
-    async function render() {
-      const url = $('csvUrl').value.trim();
-      if (!url) { $('status').textContent = 'CSVのURLを入力してください'; return; }
-      $('status').textContent = '更新中…';
-      try {
-        const rows = await fetchCsv(url);
-        log(`[render] rows=${rows.length}`);
-        if (!rows.length) { $('status').textContent = 'データがありません'; return; }
+    // D2セル時刻の代わりにHTML内に隠し要素を置いて管理
+    const hiddenD2=document.createElement('div');
+    hiddenD2.id='d2time';
+    hiddenD2.style.display='none';
+    document.body.appendChild(hiddenD2);
+    
+    let running = false;
 
-        const mode = $('mode').value;
-        if (mode === 'latest') {
-          const last = rows[rows.length - 1];
-          const latlng = [last.lat, last.lng];
-          if (!marker) marker = L.marker(latlng).addTo(map);
-          marker.setLatLng(latlng);
-          if (polyline) { map.removeLayer(polyline); polyline = null; }
-          fitViewIfNeeded([latlng]);
-          $('status').textContent = `最新: ${last.timestamp || ''} / ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)} / bus_id: ${last.bus_id || '-'}`;
-        } else {
-          const latlngs = rows.map(r => [r.lat, r.lng]);
-          if (polyline) polyline.setLatLngs(latlngs); else polyline = L.polyline(latlngs, { weight: 4 }).addTo(map);
-          const last = rows[rows.length - 1];
-          const lastLatLng = [last.lat, last.lng];
-          if (!marker) marker = L.marker(lastLatLng).addTo(map);
-          marker.setLatLng(lastLatLng);
-          fitViewIfNeeded(latlngs);
-          $('status').textContent = `行数: ${rows.length} / 最新: ${last.timestamp || ''} / ${lastLatLng[0].toFixed(6)}, ${lastLatLng[1].toFixed(6)} / bus_id: ${last.bus_id || '-'}`;
+    async function start() {
+      if (running) return;
+      running = true;
+    //  const intervalMs = Math.max(3000, Number($('#intervalSec').value) * 1000 || 5000);
+      const intervalMs = 10 * 1000;
+      log("await sleep intervalMs :" + intervalMs);
+//      while (running) {
+//        await render();                  // ← fetchCsv() を待ってから
+//        await new Promise(r => setTimeout(r, intervalMs));  // 次の周期へ
+//      }
+      while(running){
+        try{
+          await render(); 
+        } catch(e){ 
+          $('status').textContent='エラー: '+e.message; log('[error] '+(e.stack||e.message)); 
         }
-      } catch (e) {
-        $('status').textContent = 'エラー: ' + e.message;
-        log(`[error] ${e.stack || e.message}`);
-      }
+        await sleep(intervalMs);
+      }      
     }
-
-    function start() {
-      if (timerId) clearInterval(timerId);
-      render();
-      const sec = Math.max(3, Number($('intervalSec').value) || 5);
-      timerId = setInterval(render, sec * 1000);
-    }
-
-    function stop() {
-      if (timerId) { clearInterval(timerId); timerId = null; }
-      $('status').textContent = '停止中';
-    }
-
-    $('startBtn').addEventListener('click', start);
-    $('stopBtn').addEventListener('click', stop);
+    function stop(){ running = false; }
+    //    $('startBtn').addEventListener('click',start);
+    //    $('stopBtn').addEventListener('click',stop);
+    start();
   </script>
 </body>
 </html>
