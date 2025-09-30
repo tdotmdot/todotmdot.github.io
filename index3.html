@@ -64,7 +64,7 @@
     // 旧: async function fetchCsv(url){ ... }
     // 新: 最新N件をGASから取る
     async function fetchLatest(limit=50){
-      const base = 'https://script.google.com/macros/s/＜あなたのID＞/exec';
+      const base = 'https://script.google.com/macros/s/AKfycbwOpVd22xfuYgxMgbPsJ1TpLdSs_CW3MburtB1rn-mSwyUBA9ubutT3qyXyFKrQOSz4/exec';
       const url  = `${base}?fn=latest&limit=${limit}&_ts=${Date.now()}`; // キャッシュ回避
       const res  = await fetch(url, { cache:'no-store' });
       if (!res.ok) throw new Error('HTTP '+res.status);
